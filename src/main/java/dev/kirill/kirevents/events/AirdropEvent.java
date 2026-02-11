@@ -96,7 +96,10 @@ public class AirdropEvent extends EventStructure {
         List<ItemStack> configuredLoot = plugin.getLootConfigManager().getLoot(EventType.AIRDROP, chestNumber);
         
         Map<Integer, ItemStack> lootMap = new HashMap<>();
-        Inventory inv = ((org.bukkit.block.Container) chestLoc.getBlock().getState()).getInventory();
+        
+        // Работаем с EnderChest правильно
+        org.bukkit.block.EnderChest enderChest = (org.bukkit.block.EnderChest) chestLoc.getBlock().getState();
+        Inventory inv = enderChest.getInventory();
         
         List<Integer> slots = new ArrayList<>();
         for (int i = 0; i < 54; i++) {
@@ -184,11 +187,12 @@ public class AirdropEvent extends EventStructure {
         
         Bukkit.broadcastMessage("");
         Bukkit.broadcastMessage(prefix);
-        Bukkit.broadcastMessage("§6§l✦ ПОЯВИЛСЯ ИВЕНТ: §e§lАИРДРОП §6§l✦");
+        Bukkit.broadcastMessage(type.getHexName());
         Bukkit.broadcastMessage("");
         Bukkit.broadcastMessage("  §7Координаты: §f" + location.getBlockX() + " " + 
                                groundY + " " + location.getBlockZ());
         Bukkit.broadcastMessage("  §7Редкость: §5§lЭПИЧЕСКИЙ");
+        Bukkit.broadcastMessage("  §7Описание: " + type.getDescription());
         Bukkit.broadcastMessage("  §7Охрана: §c4 Зомби §7(100 HP)");
         Bukkit.broadcastMessage("  §7Открытие через: §e§l5 минут");
         Bukkit.broadcastMessage("");

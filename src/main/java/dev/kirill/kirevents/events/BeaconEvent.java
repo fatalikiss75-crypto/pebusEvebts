@@ -114,7 +114,10 @@ public class BeaconEvent extends EventStructure {
         List<ItemStack> configuredLoot = plugin.getLootConfigManager().getLoot(EventType.BEACON, chestNumber);
         
         Map<Integer, ItemStack> lootMap = new HashMap<>();
-        Inventory inv = ((org.bukkit.block.Container) chestLoc.getBlock().getState()).getInventory();
+        
+        // Работаем с EnderChest правильно
+        org.bukkit.block.EnderChest enderChest = (org.bukkit.block.EnderChest) chestLoc.getBlock().getState();
+        Inventory inv = enderChest.getInventory();
         
         List<Integer> slots = new ArrayList<>();
         for (int i = 0; i < 54; i++) {
@@ -222,11 +225,12 @@ public class BeaconEvent extends EventStructure {
         
         Bukkit.broadcastMessage("");
         Bukkit.broadcastMessage(prefix);
-        Bukkit.broadcastMessage("§6§l✦ ПОЯВИЛСЯ ИВЕНТ: §e§lМАЯК §6§l✦");
+        Bukkit.broadcastMessage(type.getHexName());
         Bukkit.broadcastMessage("");
         Bukkit.broadcastMessage("  §7Координаты: §f" + location.getBlockX() + " " + 
                                location.getBlockY() + " " + location.getBlockZ());
         Bukkit.broadcastMessage("  §7Сундуки: §a§l4 ОБЫЧНЫХ");
+        Bukkit.broadcastMessage("  §7Описание: " + type.getDescription());
         if (plugin.hasEconomy()) {
             Bukkit.broadcastMessage("  §7Деньги: §a§l+" + plugin.getConfig().getDouble("beacon.money-amount") + 
                     "₽ §7каждые " + plugin.getConfig().getInt("beacon.money-interval") + " сек");
