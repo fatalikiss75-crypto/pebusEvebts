@@ -1,0 +1,24 @@
+name: KirEvents
+version: '2.0.0'
+main: dev.kirill.kirevents.KirEvents
+api-version: '1.21'
+author: kirill
+description: Unique events plugin with block protection and loot rarity
+softdepend: [WorldGuard]
+
+commands:
+  kirillevent:
+    description: Main event command
+    usage: /kirillevent <beacon|airdrop|snake> [args]
+    aliases: [kevent, ke]
+  events:
+    description: Opens events menu
+    usage: /events
+
+permissions:
+  kirevents.admin:
+    description: Allows using all event commands
+    default: op
+  kirevents.use:
+    description: Allows using events menu
+    default: true

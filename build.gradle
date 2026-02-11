@@ -1,0 +1,47 @@
+plugins {
+    id 'java'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+group = 'dev.kirill'
+version = '2.0.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'purpurmc'
+        url = 'https://repo.purpurmc.org/snapshots'
+    }
+    maven {
+        name = 'enginehub'
+        url = 'https://maven.enginehub.org/repo/'
+    }
+}
+
+dependencies {
+    compileOnly 'org.purpurmc.purpur:purpur-api:1.21.1-R0.1-SNAPSHOT'
+    compileOnly 'com.sk89q.worldguard:worldguard-bukkit:7.0.9'
+}
+
+shadowJar {
+    archiveClassifier.set('')
+    archiveFileName.set("${project.name}-${project.version}.jar")
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+processResources {
+    filteringCharset = 'UTF-8'
+}
+
+build {
+    dependsOn shadowJar
+}
