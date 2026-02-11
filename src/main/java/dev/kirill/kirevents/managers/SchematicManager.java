@@ -170,13 +170,19 @@ public class SchematicManager {
                                     direction = directional.getFacing();
                                 }
 
-                                // Заменяем табличку на эндер-сундук
-                                block.setType(Material.ENDER_CHEST);
+                                // Заменяем табличку на обычный сундук
+                                block.setType(Material.CHEST);
 
                                 // Устанавливаем направление сундука
                                 if (block.getBlockData() instanceof Directional chestDirectional) {
                                     chestDirectional.setFacing(direction);
                                     block.setBlockData(chestDirectional);
+                                }
+                                
+                                // Убедимся что это одиночный сундук
+                                if (block.getBlockData() instanceof org.bukkit.block.data.type.Chest chestData) {
+                                    chestData.setType(org.bukkit.block.data.type.Chest.Type.SINGLE);
+                                    block.setBlockData(chestData);
                                 }
 
                                 chestLocations.add(new ChestLocationData(checkLoc, direction));

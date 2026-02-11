@@ -163,7 +163,11 @@ public class EventCommand implements CommandExecutor, TabCompleter {
                 }
             }
             case "stop" -> {
-                if (!plugin.getEventManager().isRunning()) {
+                // Проверяем есть ли активные структуры или запущен ли менеджер
+                boolean hasActiveEvents = plugin.getEventManager().isRunning() || 
+                                         !plugin.getEventManager().getActiveStructures().isEmpty();
+                
+                if (!hasActiveEvents) {
                     sender.sendMessage("§c✖ События не запущены!");
                 } else {
                     plugin.getEventManager().stopEvents();

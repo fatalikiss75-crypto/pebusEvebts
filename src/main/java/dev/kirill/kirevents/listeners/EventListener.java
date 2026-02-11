@@ -192,7 +192,7 @@ public class EventListener implements Listener {
     public void registerChest(Location chestLoc, long spawnTime, Map<Integer, ItemStack> loot) {
         int unlockDelay = plugin.getConfig().getInt("loot.chest-unlock-delay", 300);
         long unlockTime = spawnTime + (unlockDelay * 1000L);
-        long expireTime = unlockTime + (25 * 60 * 1000L); // 25 минут на лут
+        long expireTime = unlockTime + (3 * 60 * 1000L); // 3 минуты на лут
 
         chestUnlockTime.put(chestLoc, unlockTime);
         chestExpireTime.put(chestLoc, expireTime);

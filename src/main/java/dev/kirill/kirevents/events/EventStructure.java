@@ -31,20 +31,55 @@ public abstract class EventStructure {
     public abstract void spawn();
 
     public void despawn() {
-        for (Location loc : structureBlocks) {
-            if (loc.getBlock().getType() != Material.AIR) {
-                loc.getBlock().setType(Material.AIR);
+        // Плавная анимация распадания
+        smoothDespawnAnimation();
+    }
+
+    private void smoothDespawnAnimation() {
+        List<Location> blocksToRemove = new ArrayList<>(structureBlocks);
+        
+        new BukkitRunnable() {
+            int step = 0;
+            final int totalSteps = 20; // 20 шагов для плавного исчезновения
+            
+            @Override
+            public void run() {
+                if (step >= totalSteps || blocksToRemove.isEmpty()) {
+                    // Удаляем оставшиеся блоки
+                    for (Location loc : blocksToRemove) {
+                        if (loc.getBlock().getType() != Material.AIR) {
+                            loc.getBlock().setType(Material.AIR);
+                        }
+                    }
+                    
+                    // Удаляем голограммы
+                    for (Location chestLoc : chestLocations) {
+                        HologramManager.removeHologram(chestLoc);
+                    }
+                    
+                    structureBlocks.clear();
+                    chestLocations.clear();
+                    plugin.getEventManager().removeStructure(EventStructure.this);
+                    cancel();
+                    return;
+                }
+                
+                // Удаляем часть блоков на каждом шаге
+                int blocksToRemoveThisStep = Math.max(1, blocksToRemove.size() / (totalSteps - step));
+                for (int i = 0; i < blocksToRemoveThisStep && !blocksToRemove.isEmpty(); i++) {
+                    int randomIndex = new Random().nextInt(blocksToRemove.size());
+                    Location loc = blocksToRemove.get(randomIndex);
+                    if (loc.getBlock().getType() != Material.AIR) {
+                        loc.getBlock().setType(Material.AIR);
+                        loc.getWorld().playSound(loc, Sound.BLOCK_GLASS_BREAK, 0.5f, 1.5f);
+                        loc.getWorld().spawnParticle(org.bukkit.Particle.CLOUD, loc.clone().add(0.5, 0.5, 0.5), 10, 0.2, 0.2, 0.2, 0.1);
+                    }
+                    blocksToRemove.remove(randomIndex);
+                }
+                
+                step++;
             }
-        }
-
-        for (Location chestLoc : chestLocations) {
-            HologramManager.removeHologram(chestLoc);
-        }
-
-        structureBlocks.clear();
-        chestLocations.clear();
-
-        plugin.getEventManager().removeStructure(this);
+        }.runTaskTimer(plugin, 0L, 2L); // Каждые 2 тика
     }
 
     protected void scheduleDespawn() {
