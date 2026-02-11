@@ -1,6 +1,7 @@
 package dev.kirill.kirevents.utils;
 
 import dev.kirill.kirevents.KirEvents;
+import dev.kirill.kirevents.managers.LootConfigManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.ArmorStand;
@@ -15,8 +16,7 @@ public class HologramManager {
     private static final Map<Location, ArmorStand> holograms = new HashMap<>();
     private static final Map<Location, BukkitRunnable> hologramTasks = new HashMap<>();
     
-    public static void createHologram(KirEvents plugin, Location chestLoc, long unlockTime, long expireTime) {
-        // Создаем голограмму над сундуком
+    public static void createHologram(KirEvents plugin, Location chestLoc, long unlockTime, long expireTime, String rarityName, String rarityColor) {
         Location hologramLoc = chestLoc.clone().add(0.5, 2.5, 0.5);
         ArmorStand hologram = (ArmorStand) chestLoc.getWorld().spawnEntity(hologramLoc, EntityType.ARMOR_STAND);
         
@@ -28,7 +28,6 @@ public class HologramManager {
         
         holograms.put(chestLoc, hologram);
         
-        // Обновляем текст каждую секунду
         BukkitRunnable task = new BukkitRunnable() {
             @Override
             public void run() {
@@ -40,26 +39,20 @@ public class HologramManager {
                 long now = System.currentTimeMillis();
                 
                 if (now < unlockTime) {
-                    // До открытия
-                    long timeLeft = (unlockTime - now) / 1000;
-                    long minutes = timeLeft / 60;
-                    long seconds = timeLeft % 60;
-                    
-                    LootManager.LootRarity rarity = LootManager.getChestRarity(chestLoc);
-                    String rarityColor = (rarity == LootManager.LootRarity.EPIC) ? "§5§l" : "§a§l";
-                    String rarityName = (rarity == LootManager.LootRarity.EPIC) ? "ЭПИЧЕСКИЙ" : "ОБЫЧНЫЙ";
+                    // До открытия - исправленный расчет времени
+                    long timeLeftMs = unlockTime - now;
+                    long totalSeconds = timeLeftMs / 1000;
+                    long minutes = totalSeconds / 60;
+                    long seconds = totalSeconds % 60;
                     
                     hologram.setCustomName(String.format("§c🔒 §e%d:%02d\n%s%s", 
                             minutes, seconds, rarityColor, rarityName));
                 } else if (now < expireTime) {
-                    // Открыт - показываем оставшееся время
-                    long timeLeft = (expireTime - now) / 1000;
-                    long minutes = timeLeft / 60;
-                    long seconds = timeLeft % 60;
-                    
-                    LootManager.LootRarity rarity = LootManager.getChestRarity(chestLoc);
-                    String rarityColor = (rarity == LootManager.LootRarity.EPIC) ? "§5§l" : "§a§l";
-                    String rarityName = (rarity == LootManager.LootRarity.EPIC) ? "ЭПИЧЕСКИЙ" : "ОБЫЧНЫЙ";
+                    // Открыт - исправленный расчет оставшегося времени
+                    long timeLeftMs = expireTime - now;
+                    long totalSeconds = timeLeftMs / 1000;
+                    long minutes = totalSeconds / 60;
+                    long seconds = totalSeconds % 60;
                     
                     hologram.setCustomName(String.format("§a✔ ОТКРЫТ §7⏱ %d:%02d\n%s%s", 
                             minutes, seconds, rarityColor, rarityName));
@@ -68,13 +61,13 @@ public class HologramManager {
                     hologram.setCustomName("§c✖ ВРЕМЯ ИСТЕКЛО");
                     Bukkit.getScheduler().runTaskLater(plugin, () -> {
                         removeHologram(chestLoc);
-                    }, 40L); // Удаляем через 2 секунды
+                    }, 40L);
                     cancel();
                 }
             }
         };
         
-        task.runTaskTimer(plugin, 0L, 20L); // Каждую секунду
+        task.runTaskTimer(plugin, 0L, 20L);
         hologramTasks.put(chestLoc, task);
     }
     

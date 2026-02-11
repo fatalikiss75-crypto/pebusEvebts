@@ -2,20 +2,16 @@ package dev.kirill.kirevents.listeners;
 
 import dev.kirill.kirevents.KirEvents;
 import dev.kirill.kirevents.events.EventStructure;
-import dev.kirill.kirevents.utils.LootManager;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.inventory.InventoryType;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.HashMap;
@@ -25,36 +21,19 @@ import java.util.UUID;
 public class EventListener implements Listener {
     
     private final KirEvents plugin;
-    private final Map<UUID, Long> shellCooldowns;
+    private final Map<UUID, Long> playerCooldowns;
     private final Map<Location, Long> chestUnlockTime;
     private final Map<Location, Long> chestExpireTime;
+    private final Map<Location, Map<Integer, ItemStack>> chestLoot;
+    private final double lootCooldown;
     
     public EventListener(KirEvents plugin) {
         this.plugin = plugin;
-        this.shellCooldowns = new HashMap<>();
+        this.playerCooldowns = new HashMap<>();
         this.chestUnlockTime = new HashMap<>();
         this.chestExpireTime = new HashMap<>();
-    }
-    
-    @EventHandler(priority = EventPriority.HIGH)
-    public void onBlockBreak(BlockBreakEvent event) {
-        Block block = event.getBlock();
-        
-        if (isEventBlock(block.getLocation())) {
-            event.setCancelled(true);
-            event.getPlayer().sendMessage("§c✖ Нельзя ломать блоки ивента!");
-        }
-    }
-    
-    @EventHandler(priority = EventPriority.HIGH)
-    public void onBlockPlace(BlockPlaceEvent event) {
-        Block block = event.getBlock();
-        Location loc = block.getLocation();
-        
-        if (isNearEventStructure(loc)) {
-            event.setCancelled(true);
-            event.getPlayer().sendMessage("§c✖ Нельзя строить рядом с ивентами!");
-        }
+        this.chestLoot = new HashMap<>();
+        this.lootCooldown = plugin.getConfig().getDouble("settings.loot-cooldown", 0.8) * 1000;
     }
     
     @EventHandler
@@ -65,48 +44,33 @@ public class EventListener implements Listener {
         Location chestLoc = event.getInventory().getLocation();
         if (chestLoc == null) return;
         
-        if (!isEventBlock(chestLoc)) return;
+        if (!isEventChest(chestLoc)) return;
         
         long now = System.currentTimeMillis();
         
-        // Проверяем время разблокировки
         Long unlockTime = chestUnlockTime.get(chestLoc);
         if (unlockTime != null && now < unlockTime) {
             event.setCancelled(true);
             long timeLeft = (unlockTime - now) / 1000;
             long minutes = timeLeft / 60;
             long seconds = timeLeft % 60;
-            player.sendMessage(String.format("§c🔒 Сундук откроется через §e%d:%02d", minutes, seconds));
+            String msg = getMessage("chest-locked").replace("{time}", minutes + ":" + String.format("%02d", seconds));
+            player.sendMessage(msg);
             return;
         }
         
-        // Проверяем время истечения
         Long expireTime = chestExpireTime.get(chestLoc);
         if (expireTime != null && now > expireTime) {
             event.setCancelled(true);
-            player.sendMessage("§7⏱ Время на забор лута истекло!");
-            
-            // Удаляем сундук
-            chestLoc.getBlock().setType(Material.AIR);
-            LootManager.removeChestData(chestLoc);
-            chestUnlockTime.remove(chestLoc);
-            chestExpireTime.remove(chestLoc);
-            
-            checkAndRemoveEmptyStructure(chestLoc);
+            player.sendMessage(getMessage("chest-expired"));
+            removeChest(chestLoc);
             return;
         }
         
-        // Проверяем пустоту
-        if (LootManager.isChestEmpty(chestLoc)) {
+        if (!hasLootRemaining(chestLoc)) {
             event.setCancelled(true);
-            player.sendMessage("§7Этот сундук уже пуст");
-            
-            chestLoc.getBlock().setType(Material.AIR);
-            LootManager.removeChestData(chestLoc);
-            chestUnlockTime.remove(chestLoc);
-            chestExpireTime.remove(chestLoc);
-            
-            checkAndRemoveEmptyStructure(chestLoc);
+            player.sendMessage(getMessage("chest-empty"));
+            removeChest(chestLoc);
         }
     }
     
@@ -120,28 +84,29 @@ public class EventListener implements Listener {
         if (clicked == null || clicked.getType() != Material.NAUTILUS_SHELL) return;
         
         Location chestLoc = event.getInventory().getLocation();
-        if (chestLoc == null || !isEventBlock(chestLoc)) return;
+        if (chestLoc == null || !isEventChest(chestLoc)) return;
         
         UUID playerId = player.getUniqueId();
         long now = System.currentTimeMillis();
         
-        if (shellCooldowns.containsKey(playerId)) {
-            long lastPickup = shellCooldowns.get(playerId);
-            long timeLeft = (lastPickup + 3000L) - now;
+        if (playerCooldowns.containsKey(playerId)) {
+            long lastPickup = playerCooldowns.get(playerId);
+            long timePassed = now - lastPickup;
             
-            if (timeLeft > 0) {
+            if (timePassed < lootCooldown) {
                 event.setCancelled(true);
-                player.sendMessage(String.format("§c⏱ Подожди §e%.1f §cсекунд!", timeLeft / 1000.0));
+                double timeLeft = (lootCooldown - timePassed) / 1000.0;
+                String msg = getMessage("loot-cooldown").replace("{time}", String.format("%.1f", timeLeft));
+                player.sendMessage(msg);
                 return;
             }
         }
         
         int slot = event.getSlot();
-        ItemStack realLoot = LootManager.getRealLoot(chestLoc, slot);
+        ItemStack realLoot = getLoot(chestLoc, slot);
         
         if (realLoot != null) {
             event.setCancelled(true);
-            
             event.getClickedInventory().setItem(slot, new ItemStack(Material.AIR));
             
             Map<Integer, ItemStack> leftover = player.getInventory().addItem(realLoot);
@@ -153,31 +118,29 @@ public class EventListener implements Listener {
                 player.sendMessage("§e⚠ Инвентарь полон! Предметы выпали на землю");
             }
             
-            shellCooldowns.put(playerId, now);
-            LootManager.decrementItemCount(chestLoc);
+            playerCooldowns.put(playerId, now);
+            removeLoot(chestLoc, slot);
             
-            player.sendMessage("§a§l✔ §aПолучено: §f" + getItemName(realLoot));
-            player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
+            String itemName = getItemName(realLoot);
+            String msg = getMessage("loot-received").replace("{item}", itemName);
+            player.sendMessage(msg);
+            player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
             
-            if (LootManager.isChestEmpty(chestLoc)) {
+            if (!hasLootRemaining(chestLoc)) {
                 player.closeInventory();
-                chestLoc.getBlock().setType(Material.AIR);
-                LootManager.removeChestData(chestLoc);
-                chestUnlockTime.remove(chestLoc);
-                chestExpireTime.remove(chestLoc);
-                player.sendMessage("§7Сундук опустел и исчез");
-                
-                checkAndRemoveEmptyStructure(chestLoc);
+                removeChest(chestLoc);
             }
         }
     }
     
-    public void registerChest(Location chestLoc, long spawnTime) {
-        long unlockTime = spawnTime + (5 * 60 * 1000L); // +5 минут
-        long expireTime = unlockTime + (5 * 60 * 1000L); // еще +5 минут
+    public void registerChest(Location chestLoc, long spawnTime, Map<Integer, ItemStack> loot) {
+        int unlockDelay = plugin.getConfig().getInt("loot.chest-unlock-delay", 300);
+        long unlockTime = spawnTime + (unlockDelay * 1000L);
+        long expireTime = unlockTime + (5 * 60 * 1000L);
         
         chestUnlockTime.put(chestLoc, unlockTime);
         chestExpireTime.put(chestLoc, expireTime);
+        chestLoot.put(chestLoc, new HashMap<>(loot));
     }
     
     public long getUnlockTime(Location chestLoc) {
@@ -188,21 +151,44 @@ public class EventListener implements Listener {
         return chestExpireTime.getOrDefault(chestLoc, 0L);
     }
     
-    private boolean isEventBlock(Location loc) {
-        EventStructure structure = plugin.getEventManager().getStructureAt(loc);
-        return structure != null && structure.containsBlock(loc);
+    private ItemStack getLoot(Location chestLoc, int slot) {
+        Map<Integer, ItemStack> loot = chestLoot.get(chestLoc);
+        return loot != null ? loot.get(slot) : null;
     }
     
-    private boolean isNearEventStructure(Location loc) {
-        return plugin.getEventManager().isNearAnyStructure(loc, 5);
+    private void removeLoot(Location chestLoc, int slot) {
+        Map<Integer, ItemStack> loot = chestLoot.get(chestLoc);
+        if (loot != null) {
+            loot.remove(slot);
+        }
+    }
+    
+    private boolean hasLootRemaining(Location chestLoc) {
+        Map<Integer, ItemStack> loot = chestLoot.get(chestLoc);
+        return loot != null && !loot.isEmpty();
+    }
+    
+    private void removeChest(Location chestLoc) {
+        chestLoc.getBlock().setType(Material.AIR);
+        chestUnlockTime.remove(chestLoc);
+        chestExpireTime.remove(chestLoc);
+        chestLoot.remove(chestLoc);
+        
+        checkAndRemoveEmptyStructure(chestLoc);
+    }
+    
+    private boolean isEventChest(Location loc) {
+        EventStructure structure = plugin.getEventManager().getStructureAt(loc);
+        return structure != null && structure.containsChest(loc);
     }
     
     private void checkAndRemoveEmptyStructure(Location chestLoc) {
         EventStructure structure = plugin.getEventManager().getStructureAt(chestLoc);
-        if (structure != null && structure.areAllChestsEmpty()) {
+        if (structure != null && structure.areAllChestsEmpty(this)) {
             structure.despawn();
-            plugin.getServer().broadcastMessage("§8[§6KirEvents§8]§r §7Ивент §e" + 
-                    structure.getType().getDisplayName() + " §7завершился - все сундуки опустели!");
+            String msg = "§8[§6KirEvents§8]§r §7Ивент §e" + 
+                    structure.getType().getDisplayName() + " §7завершился - все сундуки опустели!";
+            plugin.getServer().broadcastMessage(msg);
         }
     }
     
@@ -224,5 +210,11 @@ public class EventListener implements Listener {
         }
         
         return result.toString().trim() + (item.getAmount() > 1 ? " x" + item.getAmount() : "");
+    }
+    
+    private String getMessage(String key) {
+        String msg = plugin.getConfig().getString("messages." + key, "");
+        String prefix = plugin.getConfig().getString("messages.prefix", "");
+        return (prefix + msg).replace("&", "§");
     }
 }

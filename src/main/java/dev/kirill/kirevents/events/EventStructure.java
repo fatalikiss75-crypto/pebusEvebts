@@ -1,7 +1,8 @@
 package dev.kirill.kirevents.events;
 
 import dev.kirill.kirevents.KirEvents;
-import dev.kirill.kirevents.utils.LootManager;
+import dev.kirill.kirevents.listeners.EventListener;
+import dev.kirill.kirevents.utils.HologramManager;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -30,22 +31,19 @@ public abstract class EventStructure {
     public abstract void spawn();
     
     public void despawn() {
-        // Очищаем все блоки структуры
         for (Location loc : structureBlocks) {
             if (loc.getBlock().getType() != Material.AIR) {
                 loc.getBlock().setType(Material.AIR);
             }
         }
         
-        // Очищаем данные сундуков
         for (Location chestLoc : chestLocations) {
-            LootManager.removeChestData(chestLoc);
+            HologramManager.removeHologram(chestLoc);
         }
         
         structureBlocks.clear();
         chestLocations.clear();
         
-        // Удаляем из менеджера
         plugin.getEventManager().removeStructure(this);
     }
     
@@ -55,7 +53,7 @@ public abstract class EventStructure {
         new BukkitRunnable() {
             @Override
             public void run() {
-                if (!areAllChestsEmpty()) {
+                if (!areAllChestsEmpty(plugin.getEventListener())) {
                     despawn();
                     plugin.getServer().broadcastMessage("§8[§6KirEvents§8]§r §7Ивент §e" + 
                             type.getDisplayName() + " §7завершился!");
@@ -77,13 +75,17 @@ public abstract class EventStructure {
         return structureBlocks.contains(loc);
     }
     
+    public boolean containsChest(Location loc) {
+        return chestLocations.contains(loc);
+    }
+    
     public boolean isNear(Location loc, int radius) {
         return location.distance(loc) <= radius;
     }
     
-    public boolean areAllChestsEmpty() {
+    public boolean areAllChestsEmpty(EventListener listener) {
         for (Location chestLoc : chestLocations) {
-            if (!LootManager.isChestEmpty(chestLoc)) {
+            if (listener != null && chestLoc.getBlock().getType() == Material.ENDER_CHEST) {
                 return false;
             }
         }

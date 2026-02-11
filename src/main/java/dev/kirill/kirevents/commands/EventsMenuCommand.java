@@ -14,7 +14,6 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.meta.SkullMeta;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,12 +33,12 @@ public class EventsMenuCommand implements CommandExecutor, Listener {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§cТолько для игроков!");
+            sender.sendMessage(getMessage("only-players"));
             return true;
         }
         
         if (!player.hasPermission("kirevents.use")) {
-            player.sendMessage("§cУ вас нет прав!");
+            player.sendMessage(getMessage("no-permission"));
             return true;
         }
         
@@ -50,7 +49,6 @@ public class EventsMenuCommand implements CommandExecutor, Listener {
     private void openEventsMenu(Player player) {
         Inventory inv = Bukkit.createInventory(null, 27, MENU_TITLE);
         
-        // Аирдроп
         ItemStack airdrop = createEventItem(
                 Material.CHEST,
                 "§6§lАирдроп",
@@ -64,7 +62,6 @@ public class EventsMenuCommand implements CommandExecutor, Listener {
         );
         inv.setItem(11, airdrop);
         
-        // Маяк
         ItemStack beacon = createEventItem(
                 Material.BEACON,
                 "§e§lМаяк",
@@ -73,12 +70,12 @@ public class EventsMenuCommand implements CommandExecutor, Listener {
                         "§7Незеритовая пирамида 10x10",
                         "§74 эндер-сундука",
                         "§7Редкость: §aОбычная §7и §5Эпическая",
+                        plugin.hasEconomy() ? "§7Деньги: §a+" + plugin.getConfig().getDouble("beacon.money-amount") + "₽/мин" : "",
                         "§7Интервал: §e60 мин"
                 )
         );
         inv.setItem(13, beacon);
         
-        // Змея
         ItemStack snake = createEventItem(
                 Material.LIME_CONCRETE,
                 "§a§lЗмея",
@@ -92,7 +89,6 @@ public class EventsMenuCommand implements CommandExecutor, Listener {
         );
         inv.setItem(15, snake);
         
-        // Декор
         ItemStack glass = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         ItemMeta glassMeta = glass.getItemMeta();
         glassMeta.setDisplayName(" ");
@@ -118,7 +114,11 @@ public class EventsMenuCommand implements CommandExecutor, Listener {
         
         List<String> lore = new ArrayList<>();
         lore.add("");
-        lore.addAll(description);
+        for (String line : description) {
+            if (!line.isEmpty()) {
+                lore.add(line);
+            }
+        }
         lore.add("");
         
         if (plugin.getEventManager().isRunning()) {
@@ -129,7 +129,7 @@ public class EventsMenuCommand implements CommandExecutor, Listener {
             }
         } else {
             lore.add("§cИвенты не запущены");
-            lore.add("§7/kirillevent start");
+            lore.add("§7/kirievent start");
         }
         
         meta.setLore(lore);
@@ -159,5 +159,11 @@ public class EventsMenuCommand implements CommandExecutor, Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!event.getView().getTitle().equals(MENU_TITLE)) return;
         event.setCancelled(true);
+    }
+    
+    private String getMessage(String key) {
+        String msg = plugin.getConfig().getString("messages." + key, "");
+        String prefix = plugin.getConfig().getString("messages.prefix", "");
+        return (prefix + msg).replace("&", "§");
     }
 }
