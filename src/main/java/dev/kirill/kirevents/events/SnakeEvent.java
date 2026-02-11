@@ -8,16 +8,24 @@ import dev.kirill.kirevents.managers.SchematicManager;
 import dev.kirill.kirevents.utils.HologramManager;
 import org.bukkit.*;
 import org.bukkit.block.Block;
-import org.bukkit.block.Container;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.Chest;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
 
 public class SnakeEvent extends EventStructure {
 
     private final Random random;
+    private BossBar bossBar;
+    private BukkitRunnable bossBarTask;
 
     public SnakeEvent(KirEvents plugin, Location location) {
         super(plugin, location, EventType.SNAKE);
@@ -42,6 +50,8 @@ public class SnakeEvent extends EventStructure {
         }
 
         plugin.getEventManager().addStructure(this);
+
+        Bukkit.getScheduler().runTaskLater(plugin, this::createBossBar, 10L);
         scheduleDespawn();
     }
 
@@ -53,7 +63,7 @@ public class SnakeEvent extends EventStructure {
             int chestNum = 1;
             for (SchematicManager.ChestLocationData chestData : chests) {
                 if (chestNum <= 10) {
-                    setupChest(chestData.getLocation(), chestNum);
+                    setupChest(chestData.getLocation(), chestNum, chestData.getDirection());
                 }
                 chestNum++;
             }
@@ -102,84 +112,114 @@ public class SnakeEvent extends EventStructure {
             int pathIndex = (pathLength / (chestCount + 1)) * (i + 1);
             if (pathIndex < pathLength) {
                 Location chestLoc = snakePath.get(pathIndex).clone().add(0, 1, 0);
-                Block chestBlock = chestLoc.getBlock();
-                chestBlock.setType(Material.ENDER_CHEST);
-                addChest(chestLoc);
-                setupChest(chestLoc, i + 1);
+
+                BlockFace direction = BlockFace.NORTH;
+                if (pathIndex > 0 && pathIndex < snakePath.size()) {
+                    Location current = snakePath.get(pathIndex);
+                    Location previous = snakePath.get(pathIndex - 1);
+
+                    int dx = current.getBlockX() - previous.getBlockX();
+                    int dz = current.getBlockZ() - previous.getBlockZ();
+
+                    if (dx > 0) direction = BlockFace.WEST;
+                    else if (dx < 0) direction = BlockFace.EAST;
+                    else if (dz > 0) direction = BlockFace.NORTH;
+                    else if (dz < 0) direction = BlockFace.SOUTH;
+                }
+
+                setupChest(chestLoc, i + 1, direction);
             }
         }
 
         buildCloudHead(snakePath);
     }
 
-    private void setupChest(Location chestLoc, int chestNumber) {
+    private void setupChest(Location chestLoc, int chestNumber, BlockFace direction) {
         List<ItemStack> configuredLoot = plugin.getLootConfigManager().getLoot(EventType.SNAKE, chestNumber);
 
-        Map<Integer, ItemStack> lootMap = new HashMap<>();
+        Block chestBlock = chestLoc.getBlock();
+        chestBlock.setType(Material.CHEST);
 
-        // Используем Container вместо Chest для работы с ENDER_CHEST
-        if (!(chestLoc.getBlock().getState() instanceof Container container)) {
-            plugin.getLogger().warning("Block at " + chestLoc + " is not a Container!");
-            return;
-        }
-
-        Inventory inv = container.getInventory();
-
-        List<Integer> slots = new ArrayList<>();
-        for (int i = 0; i < inv.getSize(); i++) {
-            slots.add(i);
-        }
-        Collections.shuffle(slots);
-
-        int itemCount = configuredLoot.isEmpty() ? 30 : Math.min(configuredLoot.size(), 30);
+        org.bukkit.block.data.type.Chest chestData = (org.bukkit.block.data.type.Chest) chestBlock.getBlockData();
+        chestData.setFacing(direction);
+        chestData.setType(org.bukkit.block.data.type.Chest.Type.SINGLE);
+        chestBlock.setBlockData(chestData, true);
 
         boolean isEpic = random.nextInt(100) < 40;
 
-        for (int i = 0; i < itemCount && i < slots.size(); i++) {
-            int slot = slots.get(i);
+        chestBlock.getState().update(true, true);
 
-            ItemStack loot;
-            if (!configuredLoot.isEmpty() && i < configuredLoot.size()) {
-                loot = configuredLoot.get(i).clone();
-            } else {
-                loot = isEpic ? generateEpicLoot() : generateCommonLoot();
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (chestLoc.getBlock().getType() != Material.CHEST) {
+                plugin.getLogger().warning("Snake chest block disappeared at " + chestLoc);
+                return;
             }
 
-            ItemStack shell = new ItemStack(Material.NAUTILUS_SHELL);
-            ItemMeta meta = shell.getItemMeta();
-
-            if (isEpic) {
-                meta.setDisplayName("§5§l✦ Эпическая Ракушка ✦");
-                meta.setLore(Arrays.asList(
-                        "§7Нажми, чтобы получить награду!",
-                        "§8Что-то §5очень ценное §8внутри..."
-                ));
-            } else {
-                meta.setDisplayName("§a§lМистическая Ракушка");
-                meta.setLore(Arrays.asList(
-                        "§7Нажми, чтобы получить награду!",
-                        "§8Что-то ценное внутри..."
-                ));
+            if (!(chestLoc.getBlock().getState() instanceof Chest chest)) {
+                plugin.getLogger().warning("Failed to create snake chest at " + chestLoc);
+                return;
             }
 
-            shell.setItemMeta(meta);
+            Map<Integer, ItemStack> lootMap = new HashMap<>();
+            Inventory inv = chest.getInventory();
 
-            inv.setItem(slot, shell);
-            lootMap.put(slot, loot);
-        }
+            List<Integer> slots = new ArrayList<>();
+            for (int i = 0; i < inv.getSize(); i++) {
+                slots.add(i);
+            }
+            Collections.shuffle(slots);
 
-        container.update();
+            int itemCount = configuredLoot.isEmpty() ? 27 : Math.min(configuredLoot.size(), 27);
 
-        plugin.getEventListener().registerChest(chestLoc, spawnTime, lootMap);
+            for (int i = 0; i < itemCount && i < slots.size(); i++) {
+                int slot = slots.get(i);
 
-        HologramManager.createHologram(
-                plugin,
-                chestLoc,
-                plugin.getEventListener().getUnlockTime(chestLoc),
-                plugin.getEventListener().getExpireTime(chestLoc),
-                isEpic ? "ЭПИЧЕСКИЙ" : "ОБЫЧНЫЙ",
-                isEpic ? "§5§l" : "§a§l"
-        );
+                ItemStack loot;
+                if (!configuredLoot.isEmpty() && i < configuredLoot.size()) {
+                    loot = configuredLoot.get(i).clone();
+                } else {
+                    loot = isEpic ? generateEpicLoot() : generateCommonLoot();
+                }
+
+                ItemStack shell = new ItemStack(Material.NAUTILUS_SHELL);
+                ItemMeta meta = shell.getItemMeta();
+
+                if (isEpic) {
+                    meta.setDisplayName("§5§l✦ Эпическая Ракушка ✦");
+                    meta.setLore(Arrays.asList(
+                            "§7Нажми, чтобы получить награду!",
+                            "§8Что-то §5очень ценное §8внутри..."
+                    ));
+                } else {
+                    meta.setDisplayName("§a§lМистическая Ракушка");
+                    meta.setLore(Arrays.asList(
+                            "§7Нажми, чтобы получить награду!",
+                            "§8Что-то ценное внутри..."
+                    ));
+                }
+
+                shell.setItemMeta(meta);
+
+                inv.setItem(slot, shell);
+                lootMap.put(slot, loot);
+            }
+
+            chest.update(true, false);
+
+            plugin.getEventListener().registerChest(chestLoc, spawnTime, lootMap);
+            addChest(chestLoc);
+
+            HologramManager.createHologram(
+                    plugin,
+                    chestLoc,
+                    plugin.getEventListener().getUnlockTime(chestLoc),
+                    plugin.getEventListener().getExpireTime(chestLoc),
+                    isEpic ? "ЭПИЧЕСКИЙ" : "ОБЫЧНЫЙ",
+                    isEpic ? "§5§l" : "§a§l"
+            );
+
+            plugin.getLogger().info("Successfully created snake chest #" + chestNumber + " at " + chestLoc);
+        }, 3L);
     }
 
     private ItemStack generateCommonLoot() {
@@ -210,6 +250,84 @@ public class SnakeEvent extends EventStructure {
         } else {
             return new ItemStack(Material.NETHER_STAR, 1);
         }
+    }
+
+    private void createBossBar() {
+        bossBar = Bukkit.createBossBar("§a⚡ Жалящая Змея", BarColor.GREEN, BarStyle.SEGMENTED_10);
+        bossBar.setVisible(true);
+
+        bossBarTask = new BukkitRunnable() {
+            long unlockTime = 0;
+            long expireTime = 0;
+            boolean initialized = false;
+
+            @Override
+            public void run() {
+                if (!initialized && !chestLocations.isEmpty()) {
+                    unlockTime = plugin.getEventListener().getUnlockTime(chestLocations.get(0));
+                    expireTime = plugin.getEventListener().getExpireTime(chestLocations.get(0));
+                    initialized = true;
+                }
+
+                long now = System.currentTimeMillis();
+                int duration = plugin.getConfig().getInt("timings.snake.duration", 30);
+                long endTime = spawnTime + (duration * 60 * 1000L);
+
+                bossBar.removeAll();
+                for (Player player : location.getWorld().getPlayers()) {
+                    if (player.getLocation().distance(location) <= 75) {
+                        bossBar.addPlayer(player);
+                    }
+                }
+
+                if (now >= endTime) {
+                    bossBar.removeAll();
+                    cancel();
+                    return;
+                }
+
+                if (!initialized) {
+                    bossBar.setTitle("§e⏳ Змея готовится...");
+                    bossBar.setColor(BarColor.YELLOW);
+                    bossBar.setProgress(1.0);
+                } else if (now < unlockTime) {
+                    long timeLeft = (unlockTime - now) / 1000;
+                    long minutes = timeLeft / 60;
+                    long seconds = timeLeft % 60;
+                    bossBar.setTitle(String.format("§c🔒 Змея заблокирована §7│ §eОткрытие через: %d:%02d", minutes, seconds));
+                    bossBar.setColor(BarColor.RED);
+                    double progress = Math.max(0, Math.min(1, (double) (unlockTime - now) / (5 * 60 * 1000)));
+                    bossBar.setProgress(progress);
+                } else if (now < expireTime) {
+                    long timeLeft = (expireTime - now) / 1000;
+                    long minutes = timeLeft / 60;
+                    long seconds = timeLeft % 60;
+                    bossBar.setTitle(String.format("§a✔ Змея открыта §7│ §eВремя: %d:%02d", minutes, seconds));
+                    bossBar.setColor(BarColor.GREEN);
+                    double progress = Math.max(0, Math.min(1, (double) (expireTime - now) / (25 * 60 * 1000)));
+                    bossBar.setProgress(progress);
+                } else {
+                    bossBar.setTitle("§c✖ Змея истекла!");
+                    bossBar.setColor(BarColor.RED);
+                    bossBar.setProgress(0);
+                }
+            }
+        };
+
+        bossBarTask.runTaskTimer(plugin, 0L, 20L);
+    }
+
+    @Override
+    public void despawn() {
+        if (bossBar != null) {
+            bossBar.removeAll();
+            bossBar = null;
+        }
+        if (bossBarTask != null) {
+            bossBarTask.cancel();
+            bossBarTask = null;
+        }
+        super.despawn();
     }
 
     private void buildCloudHead(List<Location> snakePath) {

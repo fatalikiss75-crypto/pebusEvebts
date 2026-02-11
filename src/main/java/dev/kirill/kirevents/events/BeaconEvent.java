@@ -6,8 +6,12 @@ import dev.kirill.kirevents.utils.HologramManager;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.block.Container;
+import org.bukkit.block.Chest;
 import org.bukkit.block.data.Directional;
+import org.bukkit.block.data.type.Chest.Type;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -19,6 +23,8 @@ import java.util.*;
 public class BeaconEvent extends EventStructure {
 
     private BukkitRunnable moneyTask;
+    private BossBar bossBar;
+    private BukkitRunnable bossBarTask;
 
     public BeaconEvent(KirEvents plugin, Location location) {
         super(plugin, location, EventType.BEACON);
@@ -46,6 +52,9 @@ public class BeaconEvent extends EventStructure {
         // Запуск системы денег
         startMoneySystem();
 
+        // Создаем боссбар (задержка чтобы сундуки успели зарегистрироваться)
+        Bukkit.getScheduler().runTaskLater(plugin, this::createBossBar, 10L);
+
         // Удаление через время
         scheduleDespawn();
     }
@@ -57,7 +66,9 @@ public class BeaconEvent extends EventStructure {
 
             int chestNum = 1;
             for (SchematicManager.ChestLocationData chestData : chests) {
-                setupChest(chestData.getLocation(), chestNum);
+                if (chestNum <= 4) {
+                    setupChest(chestData.getLocation(), chestNum, chestData.getDirection());
+                }
                 chestNum++;
             }
         }
@@ -107,80 +118,94 @@ public class BeaconEvent extends EventStructure {
         for (Map.Entry<Location, BlockFace> entry : chestLocations.entrySet()) {
             Location chestLoc = entry.getKey();
             BlockFace direction = entry.getValue();
-
-            Block chestBlock = chestLoc.getBlock();
-            chestBlock.setType(Material.ENDER_CHEST);
-
-            // Устанавливаем направление
-            if (chestBlock.getBlockData() instanceof Directional directional) {
-                directional.setFacing(direction);
-                chestBlock.setBlockData(directional);
-            }
-
-            addChest(chestLoc);
-            setupChest(chestLoc, i);
+            setupChest(chestLoc, i, direction);
             i++;
         }
     }
 
-    private void setupChest(Location chestLoc, int chestNumber) {
+    private void setupChest(Location chestLoc, int chestNumber, BlockFace direction) {
         // Получаем лут из конфигурации
         List<ItemStack> configuredLoot = plugin.getLootConfigManager().getLoot(EventType.BEACON, chestNumber);
 
-        Map<Integer, ItemStack> lootMap = new HashMap<>();
+        // ВАЖНО: Используем CHEST, а не ENDER_CHEST!
+        Block chestBlock = chestLoc.getBlock();
+        chestBlock.setType(Material.CHEST);
 
-        // Используем Container вместо Chest для работы с ENDER_CHEST
-        if (!(chestLoc.getBlock().getState() instanceof Container container)) {
-            plugin.getLogger().warning("Block at " + chestLoc + " is not a Container!");
-            return;
-        }
+        // Устанавливаем направление И делаем одиночным сундуком
+        org.bukkit.block.data.type.Chest chestData = (org.bukkit.block.data.type.Chest) chestBlock.getBlockData();
+        chestData.setFacing(direction);
+        chestData.setType(org.bukkit.block.data.type.Chest.Type.SINGLE); // ВАЖНО: одиночный сундук!
+        chestBlock.setBlockData(chestData, true);
 
-        Inventory inv = container.getInventory();
+        // Обновляем состояние блока
+        chestBlock.getState().update(true, true);
 
-        List<Integer> slots = new ArrayList<>();
-        for (int i = 0; i < inv.getSize(); i++) {
-            slots.add(i);
-        }
-        Collections.shuffle(slots);
-
-        int itemCount = configuredLoot.isEmpty() ? 30 : Math.min(configuredLoot.size(), 30);
-
-        for (int i = 0; i < itemCount && i < slots.size(); i++) {
-            int slot = slots.get(i);
-
-            ItemStack loot;
-            if (!configuredLoot.isEmpty() && i < configuredLoot.size()) {
-                loot = configuredLoot.get(i).clone();
-            } else {
-                loot = generateDefaultLoot();
+        // Ждем 3 тика для создания контейнера
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (chestLoc.getBlock().getType() != Material.CHEST) {
+                plugin.getLogger().warning("Chest block disappeared at " + chestLoc);
+                return;
             }
 
-            ItemStack shell = new ItemStack(Material.NAUTILUS_SHELL);
-            ItemMeta meta = shell.getItemMeta();
-            meta.setDisplayName("§a§lМистическая Ракушка");
-            meta.setLore(Arrays.asList(
-                    "§7Нажми, чтобы получить награду!",
-                    "§8Что-то ценное внутри..."
-            ));
-            shell.setItemMeta(meta);
+            if (!(chestLoc.getBlock().getState() instanceof Chest chest)) {
+                plugin.getLogger().warning("Failed to create chest container at " + chestLoc);
+                return;
+            }
 
-            inv.setItem(slot, shell);
-            lootMap.put(slot, loot);
-        }
+            Map<Integer, ItemStack> lootMap = new HashMap<>();
+            Inventory inv = chest.getInventory();
 
-        container.update();
+            List<Integer> slots = new ArrayList<>();
+            for (int i = 0; i < inv.getSize(); i++) {
+                slots.add(i);
+            }
+            Collections.shuffle(slots);
 
-        plugin.getEventListener().registerChest(chestLoc, spawnTime, lootMap);
+            int itemCount = configuredLoot.isEmpty() ? 30 : Math.min(configuredLoot.size(), 27); // 27 слотов в обычном сундуке
 
-        // Создаем голограмму
-        HologramManager.createHologram(
-                plugin,
-                chestLoc,
-                plugin.getEventListener().getUnlockTime(chestLoc),
-                plugin.getEventListener().getExpireTime(chestLoc),
-                "ОБЫЧНЫЙ",
-                "§a§l"
-        );
+            for (int i = 0; i < itemCount && i < slots.size(); i++) {
+                int slot = slots.get(i);
+
+                ItemStack loot;
+                if (!configuredLoot.isEmpty() && i < configuredLoot.size()) {
+                    loot = configuredLoot.get(i).clone();
+                } else {
+                    loot = generateDefaultLoot();
+                }
+
+                ItemStack shell = new ItemStack(Material.NAUTILUS_SHELL);
+                ItemMeta meta = shell.getItemMeta();
+                meta.setDisplayName("§a§lМистическая Ракушка");
+                meta.setLore(Arrays.asList(
+                        "§7Нажми, чтобы получить награду!",
+                        "§8Что-то ценное внутри..."
+                ));
+                shell.setItemMeta(meta);
+
+                inv.setItem(slot, shell);
+                lootMap.put(slot, loot);
+            }
+
+            chest.update(true, false);
+
+            // КРИТИЧНО: Сначала регистрируем сундук с лутом
+            plugin.getEventListener().registerChest(chestLoc, spawnTime, lootMap);
+
+            // ПОТОМ добавляем в структуру (ВАЖНЫЙ ПОРЯДОК!)
+            addChest(chestLoc);
+
+            // Создаем голограмму
+            HologramManager.createHologram(
+                    plugin,
+                    chestLoc,
+                    plugin.getEventListener().getUnlockTime(chestLoc),
+                    plugin.getEventListener().getExpireTime(chestLoc),
+                    "ОБЫЧНЫЙ",
+                    "§a§l"
+            );
+
+            plugin.getLogger().info("Successfully created beacon chest #" + chestNumber + " at " + chestLoc + " with " + lootMap.size() + " items");
+        }, 3L);
     }
 
     private ItemStack generateDefaultLoot() {
@@ -196,6 +221,76 @@ public class BeaconEvent extends EventStructure {
         } else {
             return new ItemStack(Material.NETHERITE_INGOT, 1);
         }
+    }
+
+    private void createBossBar() {
+        bossBar = Bukkit.createBossBar("§c⛦ Маяк Смерти", BarColor.RED, BarStyle.SEGMENTED_10);
+        bossBar.setVisible(true);
+
+        bossBarTask = new BukkitRunnable() {
+            long unlockTime = 0;
+            long expireTime = 0;
+            boolean initialized = false;
+
+            @Override
+            public void run() {
+                // Инициализируем времена при первом запуске
+                if (!initialized && !chestLocations.isEmpty()) {
+                    unlockTime = plugin.getEventListener().getUnlockTime(chestLocations.get(0));
+                    expireTime = plugin.getEventListener().getExpireTime(chestLocations.get(0));
+                    initialized = true;
+                }
+
+                long now = System.currentTimeMillis();
+                int duration = plugin.getConfig().getInt("timings.beacon.duration", 30);
+                long endTime = spawnTime + (duration * 60 * 1000L);
+
+                // Обновляем игроков в радиусе
+                bossBar.removeAll();
+                for (Player player : location.getWorld().getPlayers()) {
+                    if (player.getLocation().distance(location) <= 75) {
+                        bossBar.addPlayer(player);
+                    }
+                }
+
+                if (now >= endTime) {
+                    bossBar.removeAll();
+                    cancel();
+                    return;
+                }
+
+                if (!initialized) {
+                    bossBar.setTitle("§e⏳ Маяк готовится...");
+                    bossBar.setColor(BarColor.YELLOW);
+                    bossBar.setProgress(1.0);
+                } else if (now < unlockTime) {
+                    // До открытия
+                    long timeLeft = (unlockTime - now) / 1000;
+                    long minutes = timeLeft / 60;
+                    long seconds = timeLeft % 60;
+                    bossBar.setTitle(String.format("§c🔒 Маяк заблокирован §7│ §eОткрытие через: %d:%02d", minutes, seconds));
+                    bossBar.setColor(BarColor.RED);
+                    double progress = Math.max(0, Math.min(1, (double) (unlockTime - now) / (5 * 60 * 1000)));
+                    bossBar.setProgress(progress);
+                } else if (now < expireTime) {
+                    // Открыт
+                    long timeLeft = (expireTime - now) / 1000;
+                    long minutes = timeLeft / 60;
+                    long seconds = timeLeft % 60;
+                    bossBar.setTitle(String.format("§a✔ Маяк открыт §7│ §eВремя: %d:%02d", minutes, seconds));
+                    bossBar.setColor(BarColor.GREEN);
+                    double progress = Math.max(0, Math.min(1, (double) (expireTime - now) / (25 * 60 * 1000)));
+                    bossBar.setProgress(progress);
+                } else {
+                    // Истекло
+                    bossBar.setTitle("§c✖ Маяк истек!");
+                    bossBar.setColor(BarColor.RED);
+                    bossBar.setProgress(0);
+                }
+            }
+        };
+
+        bossBarTask.runTaskTimer(plugin, 0L, 20L);
     }
 
     private void startMoneySystem() {
@@ -247,6 +342,14 @@ public class BeaconEvent extends EventStructure {
         if (moneyTask != null) {
             moneyTask.cancel();
             moneyTask = null;
+        }
+        if (bossBar != null) {
+            bossBar.removeAll();
+            bossBar = null;
+        }
+        if (bossBarTask != null) {
+            bossBarTask.cancel();
+            bossBarTask = null;
         }
         super.despawn();
     }

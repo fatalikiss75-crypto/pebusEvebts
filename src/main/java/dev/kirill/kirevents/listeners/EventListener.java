@@ -40,17 +40,20 @@ public class EventListener implements Listener {
         this.lootCooldown = plugin.getConfig().getDouble("settings.loot-cooldown", 0.8) * 1000;
     }
 
-    // НОВЫЙ МЕТОД: Блокировка клика по эндер-сундуку до истечения таймера
-    @EventHandler(priority = EventPriority.HIGHEST)
+    // КРИТИЧЕСКИ ВАЖНО: Блокировка взаимодействия с обычным сундуком до истечения таймера
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onChestInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         if (event.getClickedBlock() == null) return;
-        if (event.getClickedBlock().getType() != Material.ENDER_CHEST) return;
+        if (event.getClickedBlock().getType() != Material.CHEST) return;
 
         Location chestLoc = event.getClickedBlock().getLocation();
 
         // Проверяем является ли это сундуком ивента
         if (!isEventChest(chestLoc)) return;
+
+        // БЛОКИРУЕМ взаимодействие в любом случае
+        event.setCancelled(true);
 
         Player player = event.getPlayer();
         long now = System.currentTimeMillis();
@@ -58,7 +61,6 @@ public class EventListener implements Listener {
         // Проверка времени разблокировки
         Long unlockTime = chestUnlockTime.get(chestLoc);
         if (unlockTime != null && now < unlockTime) {
-            event.setCancelled(true);
             long timeLeft = (unlockTime - now) / 1000;
             long minutes = timeLeft / 60;
             long seconds = timeLeft % 60;
@@ -71,63 +73,64 @@ public class EventListener implements Listener {
         // Проверка истечения времени
         Long expireTime = chestExpireTime.get(chestLoc);
         if (expireTime != null && now > expireTime) {
-            event.setCancelled(true);
             player.sendMessage(getMessage("chest-expired"));
-            removeChest(chestLoc);
             return;
         }
 
-        // Проверка наличия лута
+        // Проверка наличия лута - ВАЖНО: не удаляем сундук если пустой!
         if (!hasLootRemaining(chestLoc)) {
-            event.setCancelled(true);
             player.sendMessage(getMessage("chest-empty"));
-            removeChest(chestLoc);
+            return;
+        }
+
+        // Если всё ОК - открываем инвентарь программно
+        Block block = chestLoc.getBlock();
+        if (block.getState() instanceof org.bukkit.block.Chest chest) {
+            player.openInventory(chest.getInventory());
         }
     }
 
-    @EventHandler
+    // ДОПОЛНИТЕЛЬНАЯ блокировка на случай если игрок как-то обошел первую
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onInventoryOpen(InventoryOpenEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
-        if (event.getInventory().getType() != InventoryType.ENDER_CHEST) return;
 
-        Location chestLoc = event.getInventory().getLocation();
-        if (chestLoc == null) return;
+        // Проверяем обычные сундуки
+        if (event.getInventory().getType() == InventoryType.CHEST) {
+            Location chestLoc = event.getInventory().getLocation();
 
-        if (!isEventChest(chestLoc)) return;
+            // Если это не ивентовый сундук - разрешаем
+            if (chestLoc == null || !isEventChest(chestLoc)) {
+                return;
+            }
 
-        long now = System.currentTimeMillis();
+            long now = System.currentTimeMillis();
 
-        Long unlockTime = chestUnlockTime.get(chestLoc);
-        if (unlockTime != null && now < unlockTime) {
-            event.setCancelled(true);
-            long timeLeft = (unlockTime - now) / 1000;
-            long minutes = timeLeft / 60;
-            long seconds = timeLeft % 60;
-            String msg = getMessage("chest-locked").replace("{time}", minutes + ":" + String.format("%02d", seconds));
-            player.sendMessage(msg);
-            return;
-        }
+            Long unlockTime = chestUnlockTime.get(chestLoc);
+            if (unlockTime != null && now < unlockTime) {
+                event.setCancelled(true);
+                long timeLeft = (unlockTime - now) / 1000;
+                long minutes = timeLeft / 60;
+                long seconds = timeLeft % 60;
+                String msg = getMessage("chest-locked").replace("{time}", minutes + ":" + String.format("%02d", seconds));
+                player.sendMessage(msg);
+                return;
+            }
 
-        Long expireTime = chestExpireTime.get(chestLoc);
-        if (expireTime != null && now > expireTime) {
-            event.setCancelled(true);
-            player.sendMessage(getMessage("chest-expired"));
-            removeChest(chestLoc);
-            return;
-        }
-
-        if (!hasLootRemaining(chestLoc)) {
-            event.setCancelled(true);
-            player.sendMessage(getMessage("chest-empty"));
-            removeChest(chestLoc);
+            Long expireTime = chestExpireTime.get(chestLoc);
+            if (expireTime != null && now > expireTime) {
+                event.setCancelled(true);
+                player.sendMessage(getMessage("chest-expired"));
+                return;
+            }
         }
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGH)
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (event.getClickedInventory() == null) return;
-        if (event.getInventory().getType() != InventoryType.ENDER_CHEST) return;
+        if (event.getInventory().getType() != InventoryType.CHEST) return;
 
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() != Material.NAUTILUS_SHELL) return;
@@ -175,9 +178,13 @@ public class EventListener implements Listener {
             player.sendMessage(msg);
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
 
+            // Проверяем если лут закончился
             if (!hasLootRemaining(chestLoc)) {
-                player.closeInventory();
-                removeChest(chestLoc);
+                // Закрываем инвентарь через тик
+                org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    player.closeInventory();
+                    removeChest(chestLoc);
+                }, 5L);
             }
         }
     }
@@ -185,13 +192,13 @@ public class EventListener implements Listener {
     public void registerChest(Location chestLoc, long spawnTime, Map<Integer, ItemStack> loot) {
         int unlockDelay = plugin.getConfig().getInt("loot.chest-unlock-delay", 300);
         long unlockTime = spawnTime + (unlockDelay * 1000L);
-        long expireTime = unlockTime + (5 * 60 * 1000L);
+        long expireTime = unlockTime + (25 * 60 * 1000L); // 25 минут на лут
 
         chestUnlockTime.put(chestLoc, unlockTime);
         chestExpireTime.put(chestLoc, expireTime);
         chestLoot.put(chestLoc, new HashMap<>(loot));
 
-        plugin.getLogger().info("Registered chest at " + chestLoc + " with unlock time: " + unlockTime + ", expire time: " + expireTime);
+        plugin.getLogger().info("Registered chest at " + chestLoc + " with " + loot.size() + " items, unlock: " + unlockTime + ", expire: " + expireTime);
     }
 
     public long getUnlockTime(Location chestLoc) {
@@ -236,11 +243,22 @@ public class EventListener implements Listener {
 
     private void checkAndRemoveEmptyStructure(Location chestLoc) {
         EventStructure structure = plugin.getEventManager().getStructureAt(chestLoc);
-        if (structure != null && structure.areAllChestsEmpty(this)) {
-            structure.despawn();
-            String msg = "§8[§6KirEvents§8]§r §7Ивент §e" +
-                    structure.getType().getDisplayName() + " §7завершился - все сундуки опустели!";
-            plugin.getServer().broadcastMessage(msg);
+        if (structure != null) {
+            // Проверяем все сундуки структуры
+            boolean allEmpty = true;
+            for (Location loc : structure.getChestLocations()) {
+                if (hasLootRemaining(loc)) {
+                    allEmpty = false;
+                    break;
+                }
+            }
+
+            if (allEmpty) {
+                structure.despawn();
+                String msg = "§8[§6KirEvents§8]§r §7Ивент §e" +
+                        structure.getType().getDisplayName() + " §7завершился - все сундуки опустели!";
+                plugin.getServer().broadcastMessage(msg);
+            }
         }
     }
 
