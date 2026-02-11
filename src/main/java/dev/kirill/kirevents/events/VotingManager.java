@@ -15,14 +15,17 @@ public class VotingManager {
     private final Map<EventType, Integer> votes;
     private final Set<UUID> votedPlayers;
     private final EventType[] votingOptions;
-    private BukkitTask votingTask;
+    private BukkitRunnable votingTask;
     private boolean votingActive;
     private int timeRemaining;
     
     // Случайный выбор 3 уникальных ивентов для голосования
-    private static final List<EventType[]> PENDING_EVENTS = List.of(
-        new EventType[]{EventType.BEACON, EventType.AIRDROP, EventType.SNAKE}
-    );
+    private static final EventType[] PENDING_EVENTS = {
+            EventType.BEACON,
+            EventType.AIRDROP,
+            EventType.SNAKE
+    };
+
     
     public VotingManager(KirEvents plugin) {
         this.plugin = plugin;
@@ -97,23 +100,22 @@ public class VotingManager {
             @Override
             public void run() {
                 timeRemaining--;
-                
-                // Уведомляем каждые 5 секунд
+
                 if (timeRemaining > 0 && timeRemaining % 5 == 0) {
                     String msg = "§a§l⏰ " + timeRemaining + " секунд до конца голосования!";
                     msg += " §7Используйте: §e/vote <номер>";
                     Bukkit.broadcastMessage(msg);
                 }
-                
-                // Время истекло
+
                 if (timeRemaining <= 0) {
                     endVoting();
                     cancel();
                 }
             }
         };
-        
-        votingTask.runTaskTimer(plugin, 20L, 20L); // Каждую секунду
+
+        votingTask.runTaskTimer(plugin, 20L, 20L);
+
     }
     
     private void endVoting() {
