@@ -94,10 +94,10 @@ public class SnakeEvent extends EventStructure {
             }
         }
         
-        int chestCount = 10 + random.nextInt(11);
+        int chestCount = 16 + random.nextInt(11); // Увеличено с 10-20 до 16-26 для двойного лута
         int pathLength = snakePath.size();
         
-        for (int i = 0; i < chestCount && i < 10; i++) {
+        for (int i = 0; i < chestCount && i < 20; i++) {
             int pathIndex = (pathLength / (chestCount + 1)) * (i + 1);
             if (pathIndex < pathLength) {
                 Location chestLoc = snakePath.get(pathIndex).clone().add(0, 1, 0);
@@ -302,11 +302,13 @@ public class SnakeEvent extends EventStructure {
         
         Bukkit.broadcastMessage("");
         Bukkit.broadcastMessage(prefix);
-        Bukkit.broadcastMessage("§6§l✦ ПОЯВИЛСЯ ИВЕНТ: §a§lЗМЕЯ §6§l✦");
+        Bukkit.broadcastMessage(type.getHexName());
         Bukkit.broadcastMessage("");
         Bukkit.broadcastMessage("  §7Координаты: §f" + location.getBlockX() + " " + 
                                location.getBlockY() + " " + location.getBlockZ());
-        Bukkit.broadcastMessage("  §7Сундуки: §a§l60% ОБЫЧНЫЕ §7+ §5§l40% ЭПИЧЕСКИЕ");
+        Bukkit.broadcastMessage("  §7Сундуки: §a§l16-20 (§e§lДВОЙНОЙ ЛУТ§a§l)");
+        Bukkit.broadcastMessage("  §7Редкость: §a§l60% ОБЫЧНЫЕ §7+ §5§l40% ЭПИЧЕСКИЕ");
+        Bukkit.broadcastMessage("  §7Описание: " + type.getDescription());
         Bukkit.broadcastMessage("  §7Размер: §e6x6 блоков, высота 70 блоков");
         Bukkit.broadcastMessage("  §7Открытие через: §e§l5 минут");
         Bukkit.broadcastMessage("");

@@ -15,6 +15,7 @@ public class EventManager {
     private final Map<EventType, BukkitTask> eventTasks;
     private final Set<EventStructure> activeStructures;
     private final Random random;
+    private final VotingManager votingManager;
     
     private Location centerLocation;
     private int spawnRadius;
@@ -27,6 +28,7 @@ public class EventManager {
         this.activeStructures = new HashSet<>();
         this.random = new Random();
         this.running = false;
+        this.votingManager = new VotingManager(plugin);
         
         loadConfig();
     }
@@ -57,13 +59,20 @@ public class EventManager {
         if (running) return;
         running = true;
         
-        int beaconDelay = plugin.getConfig().getInt("timings.beacon.delay-before-start", 5);
-        int airdropDelay = plugin.getConfig().getInt("timings.airdrop.delay-before-start", 5);
-        int snakeDelay = plugin.getConfig().getInt("timings.snake.delay-before-start", 5);
-        
-        scheduleEvent(EventType.BEACON, beaconDelay * 60);
-        scheduleEvent(EventType.AIRDROP, airdropDelay * 60);
-        scheduleEvent(EventType.SNAKE, snakeDelay * 60);
+        // Запускаем первое голосование через 5 минут
+        scheduleFirstVoting();
+    }
+    
+    private void scheduleFirstVoting() {
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (running) {
+                votingManager.startVoting();
+            }
+        }, 5 * 60 * 20L); // 5 минут
+    }
+    
+    public VotingManager getVotingManager() {
+        return votingManager;
     }
     
     private void scheduleEvent(EventType type, int delaySeconds) {
@@ -178,5 +187,15 @@ public class EventManager {
     
     public boolean isRunning() {
         return running;
+    }
+    
+    public void stopEvents() {
+        if (!running) return;
+        running = false;
+        eventTasks.values().forEach(BukkitTask::cancel);
+        eventTasks.clear();
+        votingManager.stopVoting();
+        
+        Bukkit.broadcastMessage("§8[§6KirEvents§8] §c§lВсе ивенты остановлены администратором!");
     }
 }

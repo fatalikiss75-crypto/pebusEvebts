@@ -86,10 +86,18 @@ public class AirdropEvent extends EventStructure {
     }
     
     private void buildDefaultAirdrop(Location landLoc) {
+        // Основной сундук
         Block chestBlock = landLoc.getBlock();
         chestBlock.setType(Material.ENDER_CHEST);
         addChest(landLoc);
         setupChest(landLoc, 1);
+        
+        // Второй сундук для двойного лута
+        Location secondChest = landLoc.clone().add(2, 0, 0);
+        Block secondChestBlock = secondChest.getBlock();
+        secondChestBlock.setType(Material.ENDER_CHEST);
+        addChest(secondChest);
+        setupChest(secondChest, 2);
     }
     
     private void setupChest(Location chestLoc, int chestNumber) {
@@ -184,11 +192,13 @@ public class AirdropEvent extends EventStructure {
         
         Bukkit.broadcastMessage("");
         Bukkit.broadcastMessage(prefix);
-        Bukkit.broadcastMessage("§6§l✦ ПОЯВИЛСЯ ИВЕНТ: §e§lАИРДРОП §6§l✦");
+        Bukkit.broadcastMessage(type.getHexName());
         Bukkit.broadcastMessage("");
         Bukkit.broadcastMessage("  §7Координаты: §f" + location.getBlockX() + " " + 
                                groundY + " " + location.getBlockZ());
         Bukkit.broadcastMessage("  §7Редкость: §5§lЭПИЧЕСКИЙ");
+        Bukkit.broadcastMessage("  §7Сундуки: §5§l2 ЭПИЧЕСКИХ (§e§lДВОЙНОЙ ЛУТ§5§l)");
+        Bukkit.broadcastMessage("  §7Описание: " + type.getDescription());
         Bukkit.broadcastMessage("  §7Охрана: §c4 Зомби §7(100 HP)");
         Bukkit.broadcastMessage("  §7Открытие через: §e§l5 минут");
         Bukkit.broadcastMessage("");

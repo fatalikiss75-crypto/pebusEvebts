@@ -97,7 +97,12 @@ public class BeaconEvent extends EventStructure {
             new Location(world, baseX + 3, baseY + 5, baseZ),
             new Location(world, baseX - 3, baseY + 5, baseZ),
             new Location(world, baseX, baseY + 5, baseZ + 3),
-            new Location(world, baseX, baseY + 5, baseZ - 3)
+            new Location(world, baseX, baseY + 5, baseZ - 3),
+            // Дополнительные сундуки для двойного лута
+            new Location(world, baseX + 4, baseY + 5, baseZ + 2),
+            new Location(world, baseX - 4, baseY + 5, baseZ - 2),
+            new Location(world, baseX + 2, baseY + 5, baseZ + 4),
+            new Location(world, baseX - 2, baseY + 5, baseZ - 4)
         };
         
         for (int i = 0; i < chestLocations.length; i++) {
@@ -222,11 +227,12 @@ public class BeaconEvent extends EventStructure {
         
         Bukkit.broadcastMessage("");
         Bukkit.broadcastMessage(prefix);
-        Bukkit.broadcastMessage("§6§l✦ ПОЯВИЛСЯ ИВЕНТ: §e§lМАЯК §6§l✦");
+        Bukkit.broadcastMessage(type.getHexName());
         Bukkit.broadcastMessage("");
         Bukkit.broadcastMessage("  §7Координаты: §f" + location.getBlockX() + " " + 
                                location.getBlockY() + " " + location.getBlockZ());
-        Bukkit.broadcastMessage("  §7Сундуки: §a§l4 ОБЫЧНЫХ");
+        Bukkit.broadcastMessage("  §7Сундуки: §a§l8 ОБЫЧНЫХ (§e§lДВОЙНОЙ ЛУТ§a§l)");
+        Bukkit.broadcastMessage("  §7Описание: " + type.getDescription());
         if (plugin.hasEconomy()) {
             Bukkit.broadcastMessage("  §7Деньги: §a§l+" + plugin.getConfig().getDouble("beacon.money-amount") + 
                     "₽ §7каждые " + plugin.getConfig().getInt("beacon.money-interval") + " сек");

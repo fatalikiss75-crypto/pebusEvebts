@@ -3,6 +3,7 @@ package dev.kirill.kirevents;
 import dev.kirill.kirevents.commands.EventCommand;
 import dev.kirill.kirevents.commands.EventLootCommand;
 import dev.kirill.kirevents.commands.EventsMenuCommand;
+import dev.kirill.kirevents.commands.VoteCommand;
 import dev.kirill.kirevents.guis.LootConfigGUI;
 import dev.kirill.kirevents.listeners.EventListener;
 import dev.kirill.kirevents.listeners.RegionProtectionListener;
@@ -41,6 +42,7 @@ public class KirEvents extends JavaPlugin {
         getCommand("kirievent").setExecutor(new EventCommand(this));
         getCommand("events").setExecutor(new EventsMenuCommand(this));
         getCommand("eventloot").setExecutor(new EventLootCommand(this));
+        getCommand("vote").setExecutor(new VoteCommand(this));
         
         // Регистрация слушателей
         getServer().getPluginManager().registerEvents(eventListener, this);

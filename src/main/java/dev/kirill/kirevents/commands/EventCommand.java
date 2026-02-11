@@ -162,6 +162,14 @@ public class EventCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage("§a§l✔ События запущены!");
                 }
             }
+            case "stop" -> {
+                if (!plugin.getEventManager().isRunning()) {
+                    sender.sendMessage("§c✖ События не запущены!");
+                } else {
+                    plugin.getEventManager().stopEvents();
+                    sender.sendMessage("§a§l✔ События остановлены!");
+                }
+            }
             case "reload" -> {
                 plugin.reloadConfig();
                 plugin.getLootConfigManager().reload();
@@ -191,6 +199,7 @@ public class EventCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("§e/kirievent center set [x y z] §7- Центр спавна");
         sender.sendMessage("§e/kirievent spawnloc set <radius> §7- Радиус");
         sender.sendMessage("§e/kirievent start §7- Запустить события");
+        sender.sendMessage("§e/kirievent stop §7- Остановить события");
         sender.sendMessage("§e/kirievent reload §7- Перезагрузить конфиг");
         sender.sendMessage("§8§m                              ");
     }
@@ -198,7 +207,7 @@ public class EventCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("beacon", "airdrop", "snake", "pos1", "pos2", "save", "load", "list", "center", "spawnloc", "start", "reload");
+            return Arrays.asList("beacon", "airdrop", "snake", "pos1", "pos2", "save", "load", "list", "center", "spawnloc", "start", "stop", "reload");
         } else if (args.length == 2) {
             if (args[0].equalsIgnoreCase("center") || args[0].equalsIgnoreCase("spawnloc")) {
                 return List.of("set");
