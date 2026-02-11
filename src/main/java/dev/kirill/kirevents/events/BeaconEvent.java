@@ -107,12 +107,12 @@ public class BeaconEvent extends EventStructure {
             }
         }
 
-        // Создаем сундуки с правильным направлением
+        // Создаем сундуки с правильным направлением (смотрят к центру)
         Map<Location, BlockFace> chestLocations = new HashMap<>();
-        chestLocations.put(new Location(world, baseX + 3, baseY + 5, baseZ), BlockFace.WEST);
-        chestLocations.put(new Location(world, baseX - 3, baseY + 5, baseZ), BlockFace.EAST);
-        chestLocations.put(new Location(world, baseX, baseY + 5, baseZ + 3), BlockFace.NORTH);
-        chestLocations.put(new Location(world, baseX, baseY + 5, baseZ - 3), BlockFace.SOUTH);
+        chestLocations.put(new Location(world, baseX + 3, baseY + 5, baseZ), BlockFace.WEST);  // Смотрит к центру
+        chestLocations.put(new Location(world, baseX - 3, baseY + 5, baseZ), BlockFace.EAST);   // Смотрит к центру
+        chestLocations.put(new Location(world, baseX, baseY + 5, baseZ + 3), BlockFace.SOUTH);  // Смотрит к центру
+        chestLocations.put(new Location(world, baseX, baseY + 5, baseZ - 3), BlockFace.NORTH);  // Смотрит к центру
 
         int i = 1;
         for (Map.Entry<Location, BlockFace> entry : chestLocations.entrySet()) {
@@ -279,7 +279,7 @@ public class BeaconEvent extends EventStructure {
                     long seconds = timeLeft % 60;
                     bossBar.setTitle(String.format("§a✔ Маяк открыт §7│ §eВремя: %d:%02d", minutes, seconds));
                     bossBar.setColor(BarColor.GREEN);
-                    double progress = Math.max(0, Math.min(1, (double) (expireTime - now) / (25 * 60 * 1000)));
+                    double progress = Math.max(0, Math.min(1, (double) (expireTime - now) / (3 * 60 * 1000)));
                     bossBar.setProgress(progress);
                 } else {
                     // Истекло

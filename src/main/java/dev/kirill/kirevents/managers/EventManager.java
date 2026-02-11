@@ -203,10 +203,10 @@ public class EventManager {
     }
 
     public void stopEvents() {
-        if (!running) {
-            plugin.getLogger().warning("Events are not running!");
-            return;
-        }
+        // Останавливаем все активные структуры
+        new HashSet<>(activeStructures).forEach(EventStructure::despawn);
+        activeStructures.clear();
+        
         running = false;
         eventTasks.values().forEach(BukkitTask::cancel);
         eventTasks.clear();
