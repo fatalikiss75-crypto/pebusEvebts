@@ -97,12 +97,7 @@ public class BeaconEvent extends EventStructure {
             new Location(world, baseX + 3, baseY + 5, baseZ),
             new Location(world, baseX - 3, baseY + 5, baseZ),
             new Location(world, baseX, baseY + 5, baseZ + 3),
-            new Location(world, baseX, baseY + 5, baseZ - 3),
-            // Дополнительные сундуки для двойного лута
-            new Location(world, baseX + 4, baseY + 5, baseZ + 2),
-            new Location(world, baseX - 4, baseY + 5, baseZ - 2),
-            new Location(world, baseX + 2, baseY + 5, baseZ + 4),
-            new Location(world, baseX - 2, baseY + 5, baseZ - 4)
+            new Location(world, baseX, baseY + 5, baseZ - 3)
         };
         
         for (int i = 0; i < chestLocations.length; i++) {
@@ -119,7 +114,10 @@ public class BeaconEvent extends EventStructure {
         List<ItemStack> configuredLoot = plugin.getLootConfigManager().getLoot(EventType.BEACON, chestNumber);
         
         Map<Integer, ItemStack> lootMap = new HashMap<>();
-        Inventory inv = ((org.bukkit.block.Container) chestLoc.getBlock().getState()).getInventory();
+        
+        // Работаем с EnderChest правильно
+        org.bukkit.block.EnderChest enderChest = (org.bukkit.block.EnderChest) chestLoc.getBlock().getState();
+        Inventory inv = enderChest.getInventory();
         
         List<Integer> slots = new ArrayList<>();
         for (int i = 0; i < 54; i++) {
@@ -231,7 +229,7 @@ public class BeaconEvent extends EventStructure {
         Bukkit.broadcastMessage("");
         Bukkit.broadcastMessage("  §7Координаты: §f" + location.getBlockX() + " " + 
                                location.getBlockY() + " " + location.getBlockZ());
-        Bukkit.broadcastMessage("  §7Сундуки: §a§l8 ОБЫЧНЫХ (§e§lДВОЙНОЙ ЛУТ§a§l)");
+        Bukkit.broadcastMessage("  §7Сундуки: §a§l4 ОБЫЧНЫХ");
         Bukkit.broadcastMessage("  §7Описание: " + type.getDescription());
         if (plugin.hasEconomy()) {
             Bukkit.broadcastMessage("  §7Деньги: §a§l+" + plugin.getConfig().getDouble("beacon.money-amount") + 

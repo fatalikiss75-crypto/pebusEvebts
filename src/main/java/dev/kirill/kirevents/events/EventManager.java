@@ -120,12 +120,16 @@ public class EventManager {
     }
     
     private void announceEventStart(EventType type, int minutes) {
-        String message = plugin.getConfig().getString("messages.event-starting")
+        String message = plugin.getConfig().getString("messages.event-starting");
+        if (message == null) {
+            message = "&aСобытие '{event}' начнется через {time} минут!";
+        }
+        message = message
                 .replace("{event}", type.getDisplayName())
                 .replace("{time}", String.valueOf(minutes))
                 .replace("&", "§");
         
-        String prefix = plugin.getConfig().getString("messages.prefix").replace("&", "§");
+        String prefix = plugin.getConfig().getString("messages.prefix", "&8[&6KirEvents&8]&r ").replace("&", "§");
         Bukkit.broadcastMessage(prefix + message);
     }
     

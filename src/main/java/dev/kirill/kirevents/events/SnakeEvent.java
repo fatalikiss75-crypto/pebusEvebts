@@ -94,10 +94,10 @@ public class SnakeEvent extends EventStructure {
             }
         }
         
-        int chestCount = 16 + random.nextInt(11); // Увеличено с 10-20 до 16-26 для двойного лута
+        int chestCount = 10 + random.nextInt(11);
         int pathLength = snakePath.size();
         
-        for (int i = 0; i < chestCount && i < 20; i++) {
+        for (int i = 0; i < chestCount && i < 10; i++) {
             int pathIndex = (pathLength / (chestCount + 1)) * (i + 1);
             if (pathIndex < pathLength) {
                 Location chestLoc = snakePath.get(pathIndex).clone().add(0, 1, 0);
@@ -115,7 +115,10 @@ public class SnakeEvent extends EventStructure {
         List<ItemStack> configuredLoot = plugin.getLootConfigManager().getLoot(EventType.SNAKE, chestNumber);
         
         Map<Integer, ItemStack> lootMap = new HashMap<>();
-        Inventory inv = ((org.bukkit.block.Container) chestLoc.getBlock().getState()).getInventory();
+        
+        // Работаем с EnderChest правильно
+        org.bukkit.block.EnderChest enderChest = (org.bukkit.block.EnderChest) chestLoc.getBlock().getState();
+        Inventory inv = enderChest.getInventory();
         
         List<Integer> slots = new ArrayList<>();
         for (int i = 0; i < 54; i++) {
@@ -306,7 +309,7 @@ public class SnakeEvent extends EventStructure {
         Bukkit.broadcastMessage("");
         Bukkit.broadcastMessage("  §7Координаты: §f" + location.getBlockX() + " " + 
                                location.getBlockY() + " " + location.getBlockZ());
-        Bukkit.broadcastMessage("  §7Сундуки: §a§l16-20 (§e§lДВОЙНОЙ ЛУТ§a§l)");
+        Bukkit.broadcastMessage("  §7Сундуки: §a§l10-20 ОБЫЧНЫХ");
         Bukkit.broadcastMessage("  §7Редкость: §a§l60% ОБЫЧНЫЕ §7+ §5§l40% ЭПИЧЕСКИЕ");
         Bukkit.broadcastMessage("  §7Описание: " + type.getDescription());
         Bukkit.broadcastMessage("  §7Размер: §e6x6 блоков, высота 70 блоков");
